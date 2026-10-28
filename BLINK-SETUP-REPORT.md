@@ -111,6 +111,24 @@ The generated `sdkconfig` was created during this work and regenerated after
 updating the defaults. Build outputs and installed managed components are
 generated files, not hand-maintained source.
 
+## Why optional files were removed
+
+This repository is now intentionally single-target and single-workflow:
+
+- The other `sdkconfig.defaults.*` files supported unrelated Espressif
+  targets. Only `sdkconfig.defaults` and `sdkconfig.defaults.esp32s3` are
+  relevant to this board.
+- `pytest_blink.py` was an Espressif example test requiring the embedded-test
+  framework; it is not needed to build, flash, or monitor this application.
+- `.clangd` and the GDB `launch.json` were unused by the verified VS Code
+  build/flash/monitor workflow. C/C++ uses the generated compile database.
+- `.devcontainer` was removed. It was an optional Docker environment named
+  `ESP-IDF QEMU`, not required for this Windows installation or USB-UART
+  access. Use it only if you later choose a Docker-based Linux workflow.
+- Generated `build` and `managed_components` contents are disposable. The
+  tracked `main/idf_component.yml` and `dependencies.lock` remain so the
+  component manager can restore `espressif/led_strip` deterministically.
+
 ## Verification
 
 ### Build

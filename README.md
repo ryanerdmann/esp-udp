@@ -44,6 +44,12 @@ and ESP-IDF environment. An ordinary terminal without activation is not enough.
 This EIM installation uses `C:\Espressif\tools` as `IDF_TOOLS_PATH`, not
 `C:\Espressif`.
 
+This project is intentionally configured only for the Freenove ESP32-S3.
+The repository does not require the optional VS Code Dev Container: the
+Windows ESP-IDF installation is the working development environment, and the
+board's USB-UART port is used directly by Windows. The removed container was
+an Espressif QEMU-oriented template and was not used for this hardware.
+
 If flashing cannot connect, close other serial monitors, hold **BOOT**, tap
 **RST**, release **BOOT**, and retry. Tap **RST** without holding BOOT to
 return to normal execution if needed.
