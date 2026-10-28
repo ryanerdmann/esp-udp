@@ -5,36 +5,11 @@
   "cmake.configureOnEdit": false,
   "cmake.automaticReconfigure": false,
   "cmake.autoSelectActiveFolder": false,
-  "cmake.options.advanced": {
-    "build": {
-      "statusBarVisibility": "inherit",
-      "inheritDefault": "hidden"
-    },
-    "launch": {
-      "statusBarVisibility": "inherit",
-      "inheritDefault": "hidden"
-    },
-    "debug": {
-      "statusBarVisibility": "inherit",
-      "inheritDefault": "hidden"
-    }
-  },
-  "idf.openOcdConfigs": [
-    "board/esp32s3-builtin.cfg"
-  ],
-  "idf.port": "COM6",
   "idf.flashType": "UART",
   "idf.buildPath": "${workspaceFolder}\\build",
-  "idf.currentSetup": "C:\\esp\\v6.1\\esp-idf",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32s3",
     "PYTHONUTF8": "1",
     "PYTHONIOENCODING": "utf-8"
-  },
-  "clangd.path": "C:\\Espressif\\tools\\esp-clangd\\esp-21.1.3_20260408\\esp-clangd\\bin\\clangd.exe",
-  "clangd.arguments": [
-    "--background-index",
-    "--query-driver=**",
-    "--compile-commands-dir=c:\\Users\\ryane\\source\\repos\\esp-udp\\blink\\build"
-  ]
+  }
 }
