@@ -11,5 +11,6 @@
     "IDF_TARGET": "esp32s3",
     "PYTHONUTF8": "1",
     "PYTHONIOENCODING": "utf-8"
-  }
+  },
+  "idf.currentSetup": "C:\\esp\\v6.1\\esp-idf"
 }
