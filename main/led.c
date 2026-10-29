@@ -7,11 +7,27 @@ static const char *TAG = "blink";
 
 enum {
     BLINK_GPIO = 48,
-    BLINK_PERIOD_MS = 5000,
+    BLINK_PERIOD_MS = 1000,
     LED_BRIGHTNESS = 16,
 };
 
 static const uint32_t LED_TASK_STOP = UINT32_MAX;
+
+static void led_show_state(led_t *led, enum led_state state)
+{
+    if (state == LED_OFF)
+    {
+        ESP_ERROR_CHECK(led_strip_clear(led->led_handle));
+        return;
+    }
+
+    bool white = state == LED_ON_WHITE || state == LED_BLINK_WHITE;
+    ESP_ERROR_CHECK(led_strip_set_pixel(led->led_handle, 0,
+                                        white || state == LED_ON_RED ? LED_BRIGHTNESS : 0,
+                                        white || state == LED_ON_GREEN ? LED_BRIGHTNESS : 0,
+                                        white || state == LED_ON_BLUE ? LED_BRIGHTNESS : 0));
+    ESP_ERROR_CHECK(led_strip_refresh(led->led_handle));
+}
 
 static void led_task(void *pvParameters)
 {
@@ -34,56 +50,21 @@ static void led_task(void *pvParameters)
 
             ESP_LOGI(TAG, "Notified with value: %u", notified_value);
 
-            // Determin the next state.
             enum led_state next_state = (enum led_state)notified_value;
 
-            if (next_state == current_state)
+            if (next_state != current_state)
             {
-                // do nothing -- except if state == blink, then we still need to toggle
+                led_show_state(led, next_state);
+                isOn = next_state != LED_OFF;
+                current_state = next_state;
             }
-            else
-            {
-                switch (next_state)
-                {
-                case LED_OFF:
-                    ESP_ERROR_CHECK(led_strip_clear(led->led_handle));
-                    break;
-
-                case LED_ON:
-                case LED_BLINK:
-
-                    // TODO: better error handling
-                    ESP_ERROR_CHECK(led_strip_set_pixel(led->led_handle, 0, LED_BRIGHTNESS, LED_BRIGHTNESS, LED_BRIGHTNESS));
-                    ESP_ERROR_CHECK(led_strip_refresh(led->led_handle));
-                    isOn = true;
-
-                    break;
-                }
-
-            }
-            
-            current_state = next_state;
-
         }
         else
         {
-            ESP_LOGI(TAG, "No notification received, toggling if in BLINK state. Current state: %d, LED is currently %s", current_state, isOn ? "ON" : "OFF");
-
-            // Current state is unchanged.
-            // Iff current state == BLINK, we need to toggle.
-            if (current_state == LED_BLINK)
+            if (current_state == LED_BLINK_WHITE)
             {
-                if (isOn)
-                {
-                    ESP_ERROR_CHECK(led_strip_clear(led->led_handle));
-                }
-                else
-                {
-                    ESP_ERROR_CHECK(led_strip_set_pixel(led->led_handle, 0, LED_BRIGHTNESS, LED_BRIGHTNESS, LED_BRIGHTNESS));
-                    ESP_ERROR_CHECK(led_strip_refresh(led->led_handle));
-                }
-
                 isOn = !isOn;
+                led_show_state(led, isOn ? LED_BLINK_WHITE : LED_OFF);
             }
         }
 
@@ -100,7 +81,6 @@ BUGS TO FIX:
 Other issues I found:
 
 Notifications can prevent blinking: Blinking only happens on timeout. Repeated LED_BLINK notifications less than a second apart continually restart the wait, so the LED never toggles.
-Stale state tracking: LED_OFF clears the hardware but doesn’t set isOn = false. Currently, entering ON/BLINK resets it, so this mainly makes the logs inaccurate.
 Incorrect stack-size comment: 2048 means bytes in ESP-IDF, not words. That doesn’t prove the stack is insufficient, but it’s smaller than your comment suggests.
 The current one-time BLINK startup should get past the reported init
 
@@ -207,7 +187,7 @@ cleanup:
 esp_err_t led_set_state(led_t *led, enum led_state state)
 {
     ESP_RETURN_ON_FALSE(led, ESP_ERR_INVALID_ARG, TAG, "LED must not be NULL.");
-    ESP_RETURN_ON_FALSE(state >= LED_OFF && state <= LED_BLINK, ESP_ERR_INVALID_ARG, TAG, "Invalid LED state.");
+    ESP_RETURN_ON_FALSE(state >= LED_OFF && state <= LED_ON_RED, ESP_ERR_INVALID_ARG, TAG, "Invalid LED state.");
     ESP_RETURN_ON_FALSE(led->task_handle, ESP_ERR_INVALID_STATE, TAG, "LED task is not running.");
 
     BaseType_t ret;

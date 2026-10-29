@@ -1,0 +1,16 @@
+menu "Application Wi-Fi"
+
+    config APP_WIFI_SSID
+        string "Wi-Fi network name (SSID)"
+        default ""
+        help
+            Local network name. Stored in the ignored sdkconfig and firmware.
+
+    config APP_WIFI_PASSWORD
+        string "Wi-Fi password"
+        default ""
+        help
+            Local network password. Leave empty only for an open network.
+            Stored in plaintext in the ignored sdkconfig and firmware.
+
+endmenu

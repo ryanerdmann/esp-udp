@@ -8,8 +8,13 @@
 
 enum led_state {
     LED_OFF,
-    LED_ON,
-    LED_BLINK,
+    LED_ON_WHITE,
+    LED_BLINK_WHITE,
+    LED_ON_BLUE,
+    LED_ON_GREEN,
+    LED_ON_RED,
+    LED_ON = LED_ON_WHITE,
+    LED_BLINK = LED_BLINK_WHITE,
 };
 
 typedef struct {
