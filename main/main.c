@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "esp_log.h"
 #include "esp_check.h"
 #include "led_strip.h"
@@ -23,11 +24,14 @@ enum led_state {
     LED_BLINK,
 };
 
+static const uint32_t LED_TASK_STOP = UINT32_MAX;
+
 typedef struct {
     led_strip_handle_t led_handle;
     led_strip_config_t led_config;
     led_strip_rmt_config_t rmt_config;
     TaskHandle_t task_handle;
+    SemaphoreHandle_t task_stopped;
 } led_t;
 
 
@@ -45,6 +49,11 @@ void led_task(void *pvParameters)
 
         if (ret == pdTRUE)
         {
+            if (notified_value == LED_TASK_STOP)
+            {
+                break;
+            }
+
             ESP_LOGI(TAG, "Notified with value: %u", notified_value);
 
             // Determin the next state.
@@ -99,6 +108,10 @@ void led_task(void *pvParameters)
                 isOn = !isOn;
             }
         }
+
+        // No access to led or its driver is allowed after acknowledging shutdown.
+        ESP_ERROR_CHECK(xSemaphoreGive(led->task_stopped) == pdTRUE ? ESP_OK : ESP_FAIL);
+        vTaskDelete(NULL);
     }
 }
 
@@ -107,14 +120,42 @@ BUGS TO FIX:
 
 Other issues I found:
 
-Deletion race: led_del() frees the driver before stopping the task. The task could access the freed handle. Stop the task first, then delete the strip and check the result.
-Failure-path resource leaks: If clearing the strip or creating the task fails, the already-created strip isn’t released.
 Notifications can prevent blinking: Blinking only happens on timeout. Repeated LED_BLINK notifications less than a second apart continually restart the wait, so the LED never toggles.
 Stale state tracking: LED_OFF clears the hardware but doesn’t set isOn = false. Currently, entering ON/BLINK resets it, so this mainly makes the logs inaccurate.
 Incorrect stack-size comment: 2048 means bytes in ESP-IDF, not words. That doesn’t prove the stack is insufficient, but it’s smaller than your comment suggests.
 The current one-time BLINK startup should get past the reported init
 
 */
+
+// Call lifecycle/state APIs serially from an owning task, never from led_task.
+esp_err_t led_del(led_t *led)
+{
+    ESP_RETURN_ON_FALSE(led, ESP_ERR_INVALID_ARG, TAG, "LED must not be NULL.");
+
+    if (led->task_handle)
+    {
+        BaseType_t ret = xTaskNotify(led->task_handle, LED_TASK_STOP, eSetValueWithOverwrite);
+        ESP_RETURN_ON_FALSE(ret == pdPASS, ESP_FAIL, TAG, "Failed to request LED task shutdown.");
+        ret = xSemaphoreTake(led->task_stopped, portMAX_DELAY);
+        ESP_RETURN_ON_FALSE(ret == pdTRUE, ESP_FAIL, TAG, "Failed to wait for LED task shutdown.");
+        led->task_handle = NULL;
+    }
+
+    if (led->task_stopped)
+    {
+        vSemaphoreDelete(led->task_stopped);
+        led->task_stopped = NULL;
+    }
+
+    if (led->led_handle)
+    {
+        esp_err_t err = led_strip_del(led->led_handle);
+        ESP_RETURN_ON_ERROR(err, TAG, "Failed to delete LED strip.");
+        led->led_handle = NULL;
+    }
+
+    return ESP_OK;
+}
 
 esp_err_t led_init(led_t *led)
 {
@@ -139,7 +180,19 @@ esp_err_t led_init(led_t *led)
     ESP_RETURN_ON_ERROR(err, TAG, "Failed to create LED strip device.");
 
     err = led_strip_clear(led->led_handle);
-    ESP_RETURN_ON_ERROR(err, TAG, "Failed to clear LED strip.");
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to clear LED strip: %s", esp_err_to_name(err));
+        goto cleanup;
+    }
+
+    led->task_stopped = xSemaphoreCreateBinary();
+    if (!led->task_stopped)
+    {
+        err = ESP_ERR_NO_MEM;
+        ESP_LOGE(TAG, "Failed to create LED shutdown semaphore.");
+        goto cleanup;
+    }
 
     //
     // Create a low-priority background task to manage the state of the LED.
@@ -155,18 +208,29 @@ esp_err_t led_init(led_t *led)
         &led->task_handle); // Task handle
 
     if (ret != pdPASS) {
-        return ESP_FAIL;
+        err = ESP_FAIL;
+        ESP_LOGE(TAG, "Failed to create LED task.");
+        goto cleanup;
     }
 
     return ESP_OK;
+
+cleanup:
+    {
+        esp_err_t cleanup_err = led_del(led);
+        if (cleanup_err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "LED initialization cleanup failed: %s", esp_err_to_name(cleanup_err));
+        }
+    }
+    return err;
 }
 
 esp_err_t led_set_state(led_t *led, enum led_state state)
 {
-    if (!led)
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
+    ESP_RETURN_ON_FALSE(led, ESP_ERR_INVALID_ARG, TAG, "LED must not be NULL.");
+    ESP_RETURN_ON_FALSE(state >= LED_OFF && state <= LED_BLINK, ESP_ERR_INVALID_ARG, TAG, "Invalid LED state.");
+    ESP_RETURN_ON_FALSE(led->task_handle, ESP_ERR_INVALID_STATE, TAG, "LED task is not running.");
 
     BaseType_t ret;
     ret = xTaskNotify(led->task_handle, (uint32_t) state, eSetValueWithOverwrite);
@@ -177,20 +241,6 @@ esp_err_t led_set_state(led_t *led, enum led_state state)
 
     return ESP_OK;
 }
-
-void led_del(led_t *led)
-{
-    if (led)
-    {
-        led_strip_del(led->led_handle);
-
-        if (led->task_handle)
-        {
-            vTaskDelete(led->task_handle);
-        }
-    }
-}
-
 
 //
 // Main - return HR

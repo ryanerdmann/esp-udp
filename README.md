@@ -40,7 +40,7 @@ installation's script and assigned serial port. Exit the monitor with **Ctrl+]**
 
 ## Configuration
 
-- [Firmware](main/blink_example_main.c): fixed GPIO48/RMT driver, brightness,
+- [Firmware](main/main.c): fixed GPIO48/RMT driver, brightness,
   and blink interval. Edit the constants to change the LED behavior.
 - [sdkconfig.defaults](sdkconfig.defaults): ESP32-S3 target and 16 MB flash.
   Defaults apply when generating a new `sdkconfig`; use **ESP-IDF: SDK
@@ -48,6 +48,12 @@ installation's script and assigned serial port. Exit the monitor with **Ctrl+]**
 - [Component manifest](main/idf_component.yml) and
   [lockfile](dependencies.lock): restore the LED-strip dependency automatically.
   Keep both committed.
+
+The LED lifecycle/state APIs must be called serially by an owning task.
+`led_del()` requests cooperative shutdown and blocks until the worker has
+finished accessing the LED, then releases the semaphore and strip driver.
+It returns an `esp_err_t` that callers must check. Do not call it from the LED
+worker or initialize an already-initialized LED without deleting it first.
 
 VS Code uses Microsoft C/C++ and the generated `build/compile_commands.json`.
 Run `idf.py reconfigure` if that file is missing. Build outputs, `sdkconfig`,
