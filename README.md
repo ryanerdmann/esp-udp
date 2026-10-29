@@ -2,7 +2,7 @@
 
 ESP-IDF firmware for the **Freenove ESP32-S3 WROOM Board Lite (N16R8)**.
 The onboard addressable RGB LED on **GPIO48** alternates dim white and off
-every **1,000 ms**, using the RMT driver. The separate GPIO2 LED is not used.
+every **5,000 ms**, using the RMT driver. The separate GPIO2 LED is not used.
 Flash size is **16 MB**; PSRAM is not needed and is left disabled.
 
 ## Build, flash, and monitor
@@ -40,7 +40,8 @@ installation's script and assigned serial port. Exit the monitor with **Ctrl+]**
 
 ## Configuration
 
-- [Firmware](main/main.c): fixed GPIO48/RMT driver, brightness,
+- [Application](main/main.c): initializes the LED and selects its state.
+- [LED wrapper](main/led.c) and [public API](main/led.h): fixed GPIO48/RMT driver, brightness,
   and blink interval. Edit the constants to change the LED behavior.
 - [sdkconfig.defaults](sdkconfig.defaults): ESP32-S3 target and 16 MB flash.
   Defaults apply when generating a new `sdkconfig`; use **ESP-IDF: SDK
