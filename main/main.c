@@ -9,7 +9,7 @@ static const char *TAG = "blink";
 
 enum {
     BLINK_GPIO = 48,
-    BLINK_PERIOD_MS = 1000,
+    BLINK_PERIOD_MS = 5000,
     LED_BRIGHTNESS = 16,
 };
 
@@ -33,7 +33,6 @@ typedef struct {
 
 void led_task(void *pvParameters)
 {
-    configASSERT(((uint32_t)pvParameters) == 1);
     led_t *led = (led_t *) pvParameters;
 
     enum led_state current_state = LED_OFF;
@@ -103,6 +102,20 @@ void led_task(void *pvParameters)
     }
 }
 
+/*
+BUGS TO FIX:
+
+Other issues I found:
+
+Deletion race: led_del() frees the driver before stopping the task. The task could access the freed handle. Stop the task first, then delete the strip and check the result.
+Failure-path resource leaks: If clearing the strip or creating the task fails, the already-created strip isn’t released.
+Notifications can prevent blinking: Blinking only happens on timeout. Repeated LED_BLINK notifications less than a second apart continually restart the wait, so the LED never toggles.
+Stale state tracking: LED_OFF clears the hardware but doesn’t set isOn = false. Currently, entering ON/BLINK resets it, so this mainly makes the logs inaccurate.
+Incorrect stack-size comment: 2048 means bytes in ESP-IDF, not words. That doesn’t prove the stack is insufficient, but it’s smaller than your comment suggests.
+The current one-time BLINK startup should get past the reported init
+
+*/
+
 esp_err_t led_init(led_t *led)
 {
     if (!led)
@@ -110,7 +123,7 @@ esp_err_t led_init(led_t *led)
         return ESP_ERR_INVALID_ARG;
     }
 
-    // todo - zero out fields?
+    *led = (led_t){0};
     led->led_config.strip_gpio_num = BLINK_GPIO;
     led->led_config.max_leds = 1;
     led->rmt_config.resolution_hz = 10 * 1000 * 1000;
